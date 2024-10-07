@@ -83,11 +83,18 @@ const App = () => {
     }
   };
 
-  // Handle deleting the entire AVL tree
+  // Handle deleting the AVL tree node by node
   const handleDeleteTree = async () => {
     try {
-      await axiosInstance.post('/delete-tree');  // Call the new backend route to delete the entire tree
-      fetchTree();  // Fetch the updated (empty) tree
+      let response;
+      do {
+        response = await axiosInstance.post('/delete-tree-step');
+        const remainingNodes = response.data.remainingNodes || [];
+        fetchTree();  // Fetch the updated tree after each step
+        if (remainingNodes.length === 0) {
+          break;  // Stop when all nodes are deleted
+        }
+      } while (true);
     } catch (err) {
       console.error('Error deleting the tree:', err);
       setError('Failed to delete the tree');
@@ -135,7 +142,7 @@ const App = () => {
         Delete
       </Button>
       <Button variant="contained" color="error" onClick={handleDeleteTree} style={{ marginLeft: '10px' }}>
-        Delete Entire Tree
+        Delete Entire Tree (Step by Step)
       </Button>
       
       {/* Error message display */}

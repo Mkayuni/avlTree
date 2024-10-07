@@ -57,7 +57,6 @@ const getBalance = (node) => {
     return height(node.left) - height(node.right);
 };
 
-// Insertion function that tracks steps
 const insert = (node, data, traversedNodes = [], steps = []) => {
     if (!node) {
         traversedNodes.push(data);  // Track the node being inserted
@@ -168,8 +167,19 @@ const minValueNode = (node) => {
     return current;
 };
 
+// Helper function to perform in-order traversal to gather node values
+const getNodesInOrder = (node, nodes = []) => {
+    if (node) {
+        getNodesInOrder(node.left, nodes);
+        nodes.push(node.data);
+        getNodesInOrder(node.right, nodes);
+    }
+    return nodes;
+};
+
 // Global root node for the AVL tree
 let root = null;
+let deleteQueue = [];  // Queue to hold nodes for sequential deletion
 
 // Root route to test server
 app.get('/', (req, res) => {
@@ -194,10 +204,20 @@ app.post('/delete', (req, res) => {
     res.json({ success: true, root, traversedNodes, steps });
 });
 
-// Delete the entire tree API
-app.post('/delete-tree', (req, res) => {
-    root = null;  // Reset the root node
-    res.json({ success: true, message: 'Tree deleted successfully', root });
+// Delete the entire tree node by node
+app.post('/delete-tree-step', (req, res) => {
+    if (!deleteQueue.length) {
+        deleteQueue = getNodesInOrder(root);  // Get nodes in order if queue is empty
+    }
+
+    if (deleteQueue.length) {
+        const nodeToDelete = deleteQueue.shift();  // Take one node from the queue
+        let traversedNodes = [];
+        root = deleteNode(root, nodeToDelete, traversedNodes);  // Delete the node
+        res.json({ success: true, nodeDeleted: nodeToDelete, root, remainingNodes: deleteQueue });
+    } else {
+        res.json({ success: true, message: 'Tree completely deleted', root: null });
+    }
 });
 
 // Get the current AVL tree as JSON
