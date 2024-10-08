@@ -57,18 +57,19 @@ const getBalance = (node) => {
     return height(node.left) - height(node.right);
 };
 
-const insert = (node, data, traversedNodes = [], steps = []) => {
+const insert = (node, data, traversedNodes = [], steps = [], lastInsertedNodes = []) => {
     if (!node) {
         traversedNodes.push(data);  // Track the node being inserted
+        lastInsertedNodes.push(data);  // Track the last inserted nodes for LIFO deletion
         return new TreeNode(data);
     }
 
     traversedNodes.push(node.data);  // Track traversed nodes
 
     if (data < node.data) {
-        node.left = insert(node.left, data, traversedNodes, steps);
+        node.left = insert(node.left, data, traversedNodes, steps, lastInsertedNodes);
     } else if (data > node.data) {
-        node.right = insert(node.right, data, traversedNodes, steps);
+        node.right = insert(node.right, data, traversedNodes, steps, lastInsertedNodes);
     } else {
         return node;  // Duplicate data is not allowed
     }
@@ -167,23 +168,13 @@ const minValueNode = (node) => {
     return current;
 };
 
-// Helper function to perform in-order traversal to gather node values
-const getNodesInOrder = (node, nodes = []) => {
-    if (node) {
-        getNodesInOrder(node.left, nodes);
-        nodes.push(node.data);
-        getNodesInOrder(node.right, nodes);
-    }
-    return nodes;
-};
-
 // Global root node for the AVL tree
 let root = null;
-let deleteQueue = [];  // Queue to hold nodes for sequential deletion
+let lastInsertedNodes = [];  // Stack for tracking last inserted nodes
 
 // Root route to test server
 app.get('/', (req, res) => {
-  res.send('AVL Tree Backend');
+    res.send('AVL Tree Backend');
 });
 
 // Insert a number API with traversal tracking and steps for animation
@@ -191,7 +182,7 @@ app.post('/insert', (req, res) => {
     const { data } = req.body;
     let traversedNodes = [];
     let steps = [];
-    root = insert(root, data, traversedNodes, steps);
+    root = insert(root, data, traversedNodes, steps, lastInsertedNodes);
     res.json({ success: true, root, traversedNodes, steps });
 });
 
@@ -204,21 +195,28 @@ app.post('/delete', (req, res) => {
     res.json({ success: true, root, traversedNodes, steps });
 });
 
-// Delete the entire tree node by node
-app.post('/delete-tree-step', (req, res) => {
-    if (!deleteQueue.length) {
-        deleteQueue = getNodesInOrder(root);  // Get nodes in order if queue is empty
-    }
-
-    if (deleteQueue.length) {
-        const nodeToDelete = deleteQueue.shift();  // Take one node from the queue
+// Delete the last inserted node (LIFO order)
+app.post('/delete-last', (req, res) => {
+    if (lastInsertedNodes.length) {
+        const nodeToDelete = lastInsertedNodes.pop();  // Get the last inserted node
         let traversedNodes = [];
         root = deleteNode(root, nodeToDelete, traversedNodes);  // Delete the node
-        res.json({ success: true, nodeDeleted: nodeToDelete, root, remainingNodes: deleteQueue });
+
+        // Return the current root and remaining nodes
+        res.json({ success: true, nodeDeleted: nodeToDelete, root, remainingNodes: lastInsertedNodes });
     } else {
-        res.json({ success: true, message: 'Tree completely deleted', root: null });
+        // No more nodes to delete, return an empty state
+        res.json({ success: false, message: 'No more nodes to delete', root });
     }
 });
+
+// Reset the AVL tree to an empty state
+app.post('/reset-tree', (req, res) => {
+    root = null;  // Clear the root node
+    lastInsertedNodes = [];  // Clear the stack of last inserted nodes
+    res.json({ success: true, message: 'AVL tree reset successfully' });
+});
+
 
 // Get the current AVL tree as JSON
 app.get('/avl-tree', (req, res) => {
@@ -227,5 +225,5 @@ app.get('/avl-tree', (req, res) => {
 
 // Start the server
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });

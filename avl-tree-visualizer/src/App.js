@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, AppBar, Toolbar, Typography, TextField, Button, Slider } from '@mui/material';
+import { Container, AppBar, Toolbar, Typography, TextField, Button, IconButton, Slider } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';  // Import the back arrow icon from Material UI
 import axiosInstance from './axiosInstance';  // Import the axios instance
 import MermaidDiagram from './MermaidDiagram';  // Import your Mermaid diagram component
 
@@ -8,19 +9,34 @@ const App = () => {
   const [number, setNumber] = useState('');  // Number input state
   const [error, setError] = useState(null);  // Error handling state
   const [animationSpeed, setAnimationSpeed] = useState(1);  // Control animation speed
+  const [skipbackInProgress, setSkipbackInProgress] = useState(false);  // To track skipback process
+  const [remainingNodes, setRemainingNodes] = useState([]);  // Track remaining nodes for skipback
+
+  // Function to reset the AVL tree on page load
+  const resetTree = async () => {
+    try {
+      await axiosInstance.post('/reset-tree');  // Call the reset-tree API to clear the tree
+    } catch (err) {
+      console.error('Error resetting the AVL tree:', err);
+      setError('Failed to reset AVL tree');
+    }
+  };
 
   // Function to fetch the AVL tree from the backend and update the Mermaid diagram
   const fetchTree = async (highlightNodes = []) => {
     try {
       const response = await axiosInstance.get('/avl-tree');
       const avlTree = response.data.root;
+      const remainingNodes = response.data.remainingNodes || [];
+
       if (avlTree) {
         const mermaidSource = generateMermaidSource(avlTree, highlightNodes);
-        console.log("Mermaid Diagram to Render:", mermaidSource);  // Debug: log the source being set in the state
         setChart(mermaidSource);
       } else {
         setChart('');  // Clear the chart if the tree is empty
       }
+
+      setRemainingNodes(remainingNodes);  // Update remaining nodes in the state
     } catch (err) {
       console.error('Error fetching AVL tree data:', err);
       setError('Failed to fetch AVL tree data');
@@ -59,11 +75,19 @@ const App = () => {
 
   // Handle inserting a number into the AVL tree
   const handleInsert = async () => {
+    if (!number || isNaN(number)) {
+      setError('Please enter a valid number');
+      return;
+    }
     try {
       const response = await axiosInstance.post('/insert', { data: parseFloat(number) });
-      const highlightNodes = response.data.traversedNodes || [];  // Nodes traversed during insertion
+      const highlightNodes = response.data.traversedNodes || [];
+      const updatedRemainingNodes = response.data.remainingNodes || [];
+
       fetchTree(highlightNodes);  // Fetch the updated tree and highlight nodes
       setNumber('');  // Clear the input field
+      setRemainingNodes(updatedRemainingNodes);  // Update the remaining nodes
+      setError(null);  // Clear any previous error
     } catch (err) {
       console.error('Error inserting number:', err);
       setError('Failed to insert number');
@@ -72,38 +96,63 @@ const App = () => {
 
   // Handle deleting a number from the AVL tree
   const handleDelete = async () => {
+    if (!number || isNaN(number)) {
+      setError('Please enter a valid number');
+      return;
+    }
     try {
       const response = await axiosInstance.post('/delete', { data: parseFloat(number) });
-      const highlightNodes = response.data.traversedNodes || [];  // Nodes traversed during deletion
+      const highlightNodes = response.data.traversedNodes || [];
+      const updatedRemainingNodes = response.data.remainingNodes || [];
+
       fetchTree(highlightNodes);  // Fetch the updated tree and highlight nodes
       setNumber('');  // Clear the input field
+      setRemainingNodes(updatedRemainingNodes);  // Update remaining nodes
+      setError(null);  // Clear any previous error
     } catch (err) {
       console.error('Error deleting number:', err);
       setError('Failed to delete number');
     }
   };
 
-  // Handle deleting the AVL tree node by node
-  const handleDeleteTree = async () => {
+  // Handle skipback to delete the last inserted node
+  const handleSkipback = async () => {
     try {
-      let response;
-      do {
-        response = await axiosInstance.post('/delete-tree-step');
-        const remainingNodes = response.data.remainingNodes || [];
-        fetchTree();  // Fetch the updated tree after each step
-        if (remainingNodes.length === 0) {
-          break;  // Stop when all nodes are deleted
-        }
-      } while (true);
+      setSkipbackInProgress(true);  // Set skipback in progress flag
+
+      // Make the API call to delete the last inserted node (LIFO)
+      const response = await axiosInstance.post('/delete-last');
+      const updatedRemainingNodes = response.data.remainingNodes || [];
+
+      fetchTree();  // Fetch the updated tree after deletion
+
+      // Update remaining nodes in the state
+      setRemainingNodes(updatedRemainingNodes);
+
+      // Reset the skipback process flag after the operation completes
+      setSkipbackInProgress(false);
     } catch (err) {
-      console.error('Error deleting the tree:', err);
-      setError('Failed to delete the tree');
+      console.error('Error during skipback:', err);
+      setError('Failed to perform skipback');
+      setSkipbackInProgress(false);  // Reset flag on error
     }
   };
 
-  // Fetch the AVL tree initially when the component loads
+  // Clear the error if the user enters a valid number
+  const handleNumberChange = (e) => {
+    const input = e.target.value;
+    setNumber(input);
+
+    // Clear error if a valid number is entered
+    if (!isNaN(input) && input.trim() !== '') {
+      setError(null);
+    }
+  };
+
+  // Fetch the AVL tree initially when the component loads and reset the tree
   useEffect(() => {
-    fetchTree();
+    resetTree();  // Reset the tree on page load
+    fetchTree();  // Fetch the (now empty) tree
   }, []);
 
   return (
@@ -129,9 +178,11 @@ const App = () => {
       <TextField
         label="Enter a number"
         value={number}
-        onChange={(e) => setNumber(e.target.value)}
+        onChange={handleNumberChange}
         type="number"
         margin="normal"
+        error={!!error}  // Show error state if there's an error
+        helperText={error || ''}
       />
       
       {/* Buttons to insert or delete the number */}
@@ -141,10 +192,16 @@ const App = () => {
       <Button variant="contained" color="secondary" onClick={handleDelete} style={{ marginLeft: '10px' }}>
         Delete
       </Button>
-      <Button variant="contained" color="error" onClick={handleDeleteTree} style={{ marginLeft: '10px' }}>
-        Delete Entire Tree (Step by Step)
-      </Button>
-      
+
+      {/* Skipback Button with Back Arrow */}
+      <IconButton 
+        color="error" 
+        onClick={handleSkipback} 
+        disabled={skipbackInProgress || remainingNodes.length === 0}  // Only disable when no nodes left or skipback is ongoing
+      >
+        <ArrowBackIcon />
+      </IconButton>
+
       {/* Error message display */}
       {error && <Typography color="error">{error}</Typography>}
       
