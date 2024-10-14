@@ -1,13 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');  // To handle JSON requests
+const bodyParser = require('body-parser');
 
 const app = express();
 const port = 3001;
 
 // Enable CORS for all routes
 app.use(cors());
-app.use(bodyParser.json());  // Parse incoming JSON requests
+app.use(bodyParser.json());
 
 // AVL Tree Node structure and helper functions
 class TreeNode {
@@ -16,6 +16,7 @@ class TreeNode {
         this.left = null;
         this.right = null;
         this.height = 1;
+        this.balanceFactor = 0; // Add balance factor to the node
     }
 }
 
@@ -35,6 +36,8 @@ const rightRotate = (y) => {
 
     y.height = max(height(y.left), height(y.right)) + 1;
     x.height = max(height(x.left), height(x.right)) + 1;
+    updateBalanceFactor(x);
+    updateBalanceFactor(y);
 
     return x;
 };
@@ -48,6 +51,8 @@ const leftRotate = (x) => {
 
     x.height = max(height(x.left), height(x.right)) + 1;
     y.height = max(height(y.left), height(y.right)) + 1;
+    updateBalanceFactor(x);
+    updateBalanceFactor(y);
 
     return y;
 };
@@ -57,26 +62,35 @@ const getBalance = (node) => {
     return height(node.left) - height(node.right);
 };
 
+// Update the balance factor of a node
+const updateBalanceFactor = (node) => {
+    if (node) {
+        node.balanceFactor = getBalance(node);
+    }
+};
+
+// Insert a new node into the AVL tree
 const insert = (node, data, traversedNodes = [], steps = [], lastInsertedNodes = []) => {
     if (!node) {
-        traversedNodes.push(data);  // Track the node being inserted
-        lastInsertedNodes.push(data);  // Track the last inserted nodes for LIFO deletion
+        traversedNodes.push(data);
+        lastInsertedNodes.push(data);
         return new TreeNode(data);
     }
 
-    traversedNodes.push(node.data);  // Track traversed nodes
+    traversedNodes.push(node.data);
 
     if (data < node.data) {
         node.left = insert(node.left, data, traversedNodes, steps, lastInsertedNodes);
     } else if (data > node.data) {
         node.right = insert(node.right, data, traversedNodes, steps, lastInsertedNodes);
     } else {
-        return node;  // Duplicate data is not allowed
+        return node; // Duplicate data is not allowed
     }
 
     node.height = max(height(node.left), height(node.right)) + 1;
+    updateBalanceFactor(node); // Update the balance factor
 
-    let balance = getBalance(node);
+    let balance = node.balanceFactor;
 
     // Left Left Case
     if (balance > 1 && data < node.left.data) {
@@ -106,10 +120,11 @@ const insert = (node, data, traversedNodes = [], steps = [], lastInsertedNodes =
     return node;
 };
 
+// Delete a node from the AVL tree
 const deleteNode = (root, data, traversedNodes = [], steps = []) => {
     if (!root) return root;
 
-    traversedNodes.push(root.data);  // Track traversed nodes
+    traversedNodes.push(root.data);
 
     if (data < root.data) {
         root.left = deleteNode(root.left, data, traversedNodes, steps);
@@ -135,8 +150,9 @@ const deleteNode = (root, data, traversedNodes = [], steps = []) => {
     if (!root) return root;
 
     root.height = max(height(root.left), height(root.right)) + 1;
+    updateBalanceFactor(root); // Update the balance factor
 
-    let balance = getBalance(root);
+    let balance = root.balanceFactor;
 
     if (balance > 1 && getBalance(root.left) >= 0) {
         steps.push({ type: 'rightRotate', node: root.data });
@@ -162,10 +178,23 @@ const deleteNode = (root, data, traversedNodes = [], steps = []) => {
     return root;
 };
 
+// Helper function to find the minimum value node
 const minValueNode = (node) => {
     let current = node;
     while (current.left !== null) current = current.left;
     return current;
+};
+
+// Helper function to generate the JSON representation of the AVL tree with balance factors
+const addBalanceFactorToNode = (node) => {
+    if (!node) return null;
+    return {
+        data: node.data,
+        height: node.height,
+        balanceFactor: node.balanceFactor,
+        left: addBalanceFactorToNode(node.left),
+        right: addBalanceFactorToNode(node.right)
+    };
 };
 
 // Global root node for the AVL tree
@@ -183,7 +212,8 @@ app.post('/insert', (req, res) => {
     let traversedNodes = [];
     let steps = [];
     root = insert(root, data, traversedNodes, steps, lastInsertedNodes);
-    res.json({ success: true, root, traversedNodes, steps });
+    const avlTree = addBalanceFactorToNode(root);
+    res.json({ success: true, root: avlTree, traversedNodes, steps });
 });
 
 // Delete a number API with traversal tracking
@@ -192,35 +222,34 @@ app.post('/delete', (req, res) => {
     let traversedNodes = [];
     let steps = [];
     root = deleteNode(root, data, traversedNodes, steps);
-    res.json({ success: true, root, traversedNodes, steps });
+    const avlTree = addBalanceFactorToNode(root);
+    res.json({ success: true, root: avlTree, traversedNodes, steps });
 });
 
 // Delete the last inserted node (LIFO order)
 app.post('/delete-last', (req, res) => {
     if (lastInsertedNodes.length) {
-        const nodeToDelete = lastInsertedNodes.pop();  // Get the last inserted node
+        const nodeToDelete = lastInsertedNodes.pop();
         let traversedNodes = [];
-        root = deleteNode(root, nodeToDelete, traversedNodes);  // Delete the node
-
-        // Return the current root and remaining nodes
-        res.json({ success: true, nodeDeleted: nodeToDelete, root, remainingNodes: lastInsertedNodes });
+        root = deleteNode(root, nodeToDelete, traversedNodes);
+        const avlTree = addBalanceFactorToNode(root);
+        res.json({ success: true, nodeDeleted: nodeToDelete, root: avlTree, remainingNodes: lastInsertedNodes });
     } else {
-        // No more nodes to delete, return an empty state
         res.json({ success: false, message: 'No more nodes to delete', root });
     }
 });
 
 // Reset the AVL tree to an empty state
 app.post('/reset-tree', (req, res) => {
-    root = null;  // Clear the root node
-    lastInsertedNodes = [];  // Clear the stack of last inserted nodes
+    root = null;
+    lastInsertedNodes = [];
     res.json({ success: true, message: 'AVL tree reset successfully' });
 });
 
-
 // Get the current AVL tree as JSON
 app.get('/avl-tree', (req, res) => {
-    res.json({ root });
+    const avlTree = addBalanceFactorToNode(root);
+    res.json({ root: avlTree });
 });
 
 // Start the server
