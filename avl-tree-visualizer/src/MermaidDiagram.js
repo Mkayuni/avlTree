@@ -1,4 +1,3 @@
-// MermaidDiagram.js
 import React, { useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Box } from '@mui/material';
@@ -18,11 +17,19 @@ const DiagramBox = styled(Box)(({ theme }) => ({
   border: '1px solid #ccc'
 }));
 
+// Define dynamic styles for the animation
 const getStyles = (speed) => `
+  @keyframes fadeIn {
+    0% { opacity: 0; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
   .node rect {
     transition: fill ${speed}s, stroke ${speed}s;
   }
+
   .highlighted rect {
+    animation: fadeIn ${speed}s ease-out;
     fill: yellow !important;
     stroke: red !important;
   }
@@ -52,6 +59,14 @@ const MermaidDiagram = ({ chart, animationSpeed = 1 }) => {
           svg.setAttribute('height', '100%');
           svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
         }
+
+        // Optionally remove the highlighted class after the animation
+        setTimeout(() => {
+          const highlightedNode = svg.querySelector('.highlighted rect');
+          if (highlightedNode) {
+            highlightedNode.classList.remove('highlighted');
+          }
+        }, animationSpeed * 1000);
       }
     });
   }, [chart, animationSpeed]);
