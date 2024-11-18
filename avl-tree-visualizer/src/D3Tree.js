@@ -1,4 +1,3 @@
-// D3Tree.js
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
@@ -11,7 +10,6 @@ const D3Tree = ({ data, animationSpeed }) => {
   const playTimeoutRef = useRef(null);
 
   useEffect(() => {
-    // Clear tree data and reset current step
     if (!data) {
       setTreeData(null);
       setCurrentStep(0);
@@ -19,7 +17,6 @@ const D3Tree = ({ data, animationSpeed }) => {
       d3.select(svgRef.current).selectAll('*').remove(); // Clear the SVG content
       return;
     }
-    // Set new tree data
     setTreeData(data);
     setCurrentStep(0);
     setIsPlaying(false);
@@ -83,18 +80,6 @@ const D3Tree = ({ data, animationSpeed }) => {
       .attr('text-anchor', 'middle')
       .text(d => d.data.data);
 
-    // Add balance factor (bf) text next to each link
-    g.selectAll('.bf-text')
-      .data(root.links())
-      .join('text')
-      .attr('class', 'bf-text')
-      .attr('x', d => (d.source.x + d.target.x) / 2 + 20) // Positioning to the right of the link's center
-      .attr('y', d => (d.source.y + d.target.y) / 2)
-      .attr('text-anchor', 'start')
-      .attr('dy', '0.35em')
-      .text(d => calculateBalanceFactor(d.target.data))
-      .style('opacity', 0); // Start invisible
-
     return { link, node };
   };
 
@@ -102,9 +87,7 @@ const D3Tree = ({ data, animationSpeed }) => {
     if (!treeData) return;
     const { link, node } = drawTree(treeData);
 
-    const root = d3.hierarchy(treeData, d => [d.left, d.right].filter(Boolean));
-    const allNodes = root.descendants();
-
+    // Filter nodes and links up to the current step
     node.filter((d, i) => i <= currentStep)
       .transition()
       .duration(1000 / animationSpeed)
@@ -114,26 +97,13 @@ const D3Tree = ({ data, animationSpeed }) => {
       .transition()
       .duration(1000 / animationSpeed)
       .style('opacity', 1);
-
-    // Animate bf text visibility based on the current step
-    d3.select(svgRef.current).selectAll('.bf-text')
-      .filter((d, i) => i <= currentStep - 1)
-      .transition()
-      .duration(1000 / animationSpeed)
-      .style('opacity', 1);
   };
 
   const stepForward = () => {
     if (!treeData) return;
     const root = d3.hierarchy(treeData, d => [d.left, d.right].filter(Boolean));
     if (currentStep < root.descendants().length) {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const stepBackward = () => {
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+      setCurrentStep(prev => prev + 1); // Increment step
     }
   };
 
@@ -141,7 +111,7 @@ const D3Tree = ({ data, animationSpeed }) => {
     setCurrentStep(0);
     setIsPlaying(false);
     clearTimeout(playTimeoutRef.current);
-    d3.select(svgRef.current).selectAll('*').remove(); // Clear the SVG content
+    d3.select(svgRef.current).selectAll('*').remove();
     drawTree(treeData);
   };
 
@@ -167,7 +137,7 @@ const D3Tree = ({ data, animationSpeed }) => {
 
   useEffect(() => {
     if (treeData) {
-      showCurrentStep();
+      showCurrentStep(); // Call to animate up to current step
     }
   }, [treeData, currentStep, animationSpeed]);
 
@@ -176,7 +146,6 @@ const D3Tree = ({ data, animationSpeed }) => {
       <svg ref={svgRef}></svg>
       <div style={{ textAlign: 'center', marginTop: '10px' }}>
         <button onClick={resetTree}>Reset</button>
-        <button onClick={stepBackward} disabled={isPlaying}>Skip Back</button>
         <button onClick={stepForward} disabled={isPlaying}>Next Step</button>
         <button onClick={playSteps} disabled={isPlaying}>Play</button>
         <button onClick={stopPlaying} disabled={!isPlaying}>Stop</button>
