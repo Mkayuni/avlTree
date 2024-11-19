@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { animated } from '@react-spring/web';
 
 // Function to calculate the balance factor of a node
@@ -9,21 +9,38 @@ const calculateBalanceFactor = (node) => {
   return leftHeight - rightHeight;
 };
 
-// Updated TreeVisualizer component
-const TreeVisualizer = ({ data }) => {
+const TreeVisualizer = ({ data, balancedNode, childNodes, highlightedNode }) => {
   const svgRef = useRef();
 
-  // Function to render the AVL tree with balance factors
+  // Recursive function to render the tree
   const renderTree = (node, x, y, level) => {
     if (!node) return null;
 
-    // Calculate positions for child nodes
     const leftX = x - 100 / level;
     const rightX = x + 100 / level;
     const childY = y + 100;
 
-    // Calculate the balance factor for the current node
     const balanceFactor = calculateBalanceFactor(node);
+
+    // Determine the fill color for the current node
+    let fillColor = 'steelblue';
+
+    // Highlight unbalanced nodes in red
+    if (balanceFactor < -1 || balanceFactor > 1) {
+      fillColor = 'red';
+    }
+    // Highlight immediate children of the balanced node in green
+    if (childNodes && childNodes.some(child => child && child.data === node.data)) {
+      fillColor = 'green';
+    }
+    // Highlight the node that will be balanced next in orange
+    else if (balancedNode && node.data === balancedNode.data) {
+      fillColor = 'orange';
+    }
+    // Highlight the searched node in yellow
+    else if (highlightedNode === node.data) {
+      fillColor = 'yellow';
+    }
 
     return (
       <>
@@ -32,7 +49,7 @@ const TreeVisualizer = ({ data }) => {
           cx={x}
           cy={y}
           r={20}
-          fill={balanceFactor < -1 || balanceFactor > 1 ? 'red' : 'steelblue'}
+          fill={fillColor}
           stroke="black"
           strokeWidth={2}
         />
@@ -46,7 +63,7 @@ const TreeVisualizer = ({ data }) => {
           BF: {balanceFactor}
         </text>
 
-        {/* Draw left child and connecting line */}
+        {/* Draw the left child and the connecting line */}
         {node.left && (
           <>
             <line x1={x} y1={y} x2={leftX} y2={childY} stroke="gray" />
@@ -54,7 +71,7 @@ const TreeVisualizer = ({ data }) => {
           </>
         )}
 
-        {/* Draw right child and connecting line */}
+        {/* Draw the right child and the connecting line */}
         {node.right && (
           <>
             <line x1={x} y1={y} x2={rightX} y2={childY} stroke="gray" />
@@ -66,7 +83,12 @@ const TreeVisualizer = ({ data }) => {
   };
 
   return (
-    <svg ref={svgRef} width={800} height={600} style={{ backgroundColor: '#f0f0f0', border: '1px solid #ccc' }}>
+    <svg
+      ref={svgRef}
+      width={800}
+      height={600}
+      style={{ backgroundColor: '#f0f0f0', border: '1px solid #ccc' }}
+    >
       {renderTree(data, 400, 50, 1)}
     </svg>
   );

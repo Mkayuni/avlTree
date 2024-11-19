@@ -114,6 +114,14 @@ const insertWithDelay = async (root, data, setTreeData, delay = 1500) => {
 const balanceTree = (node, steps = [], rotationInfo = {}) => {
     if (!node) return node;
 
+    // Recursively balance the left and right subtrees first
+    node.left = balanceTree(node.left, steps, rotationInfo);
+    node.right = balanceTree(node.right, steps, rotationInfo);
+
+    // Update height and balance factor after balancing subtrees
+    node.height = Math.max(height(node.left), height(node.right)) + 1;
+    updateBalanceFactor(node);
+
     const balance = getBalance(node);
 
     // Track the node that needs balancing and its immediate children

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Container, AppBar, Toolbar, Typography, TextField, Button, Grid, Slider } from '@mui/material';
-import MermaidDiagram from './MermaidDiagram';
 import TreeVisualizer from './TreeVisualizer';
 import './App.css';
 import { TreeNode, insertWithoutBalancing, balanceTree, deleteNode, addBalanceFactorToNode } from './avlTree';
@@ -15,10 +14,68 @@ const App = () => {
   const [root, setRoot] = useState(null);
   const [balancedNode, setBalancedNode] = useState(null);
   const [childNodes, setChildNodes] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedNode, setHighlightedNode] = useState(null); // Node to highlight for search
+
   
 
+  const generateRandomTree = async () => {
+    // Prompt the user for the number of nodes
+    const count = parseInt(prompt('Enter the number of nodes for the random tree:'), 10);
+  
+    // Validate the user input
+    if (isNaN(count) || count <= 0) {
+      setError('Please enter a valid positive number.');
+      return;
+    }
+  
+    // Generate `count` unique random numbers between 1 and 100
+    const values = new Set();
+    while (values.size < count) {
+      const num = Math.floor(Math.random() * 100) + 1; // Random number between 1 and 100
+      values.add(num);
+    }
+  
+    // Reset the tree after generating values (ensures prompt is not called again)
+    resetTree();
+  
+    // Insert each value into the tree
+    for (const value of values) {
+      await handleInsertWithDelay(value); // Insert each number with a delay to ensure visualization
+    }
+  };
 
 
+  const handleSearch = () => {
+    if (!searchQuery || isNaN(searchQuery)) {
+      setError('Please enter a valid number to search.');
+      return;
+    }
+    setError(null);
+  
+    const searchValue = parseInt(searchQuery);
+  
+    // Function to search for the node
+    const searchNode = (node, value) => {
+      if (!node) return null; // Node not found
+      if (node.data === value) return node; // Node found
+      return value < node.data
+        ? searchNode(node.left, value)
+        : searchNode(node.right, value);
+    };
+  
+    const foundNode = searchNode(treeData, searchValue);
+  
+    if (foundNode) {
+      setHighlightedNode(searchValue); // Highlight the node
+      setError(null); // Clear any previous error
+    } else {
+      setHighlightedNode(null); // Clear highlight
+      setError(`Node with value ${searchValue} not found.`);
+    }
+  };
+  
+  
   // Reset the AVL tree
   const resetTree = () => {
     setRoot(null);
@@ -142,7 +199,7 @@ const App = () => {
           <Typography variant="h6">AVL Tree Visualizer</Typography>
         </Toolbar>
       </AppBar>
-
+  
       <div className="controls">
         <TextField
           label="Enter a number"
@@ -153,29 +210,58 @@ const App = () => {
           error={!!error}
           helperText={error || ''}
         />
-        <Button variant="contained" color="primary" onClick={handleInsert} style={{ marginLeft: '10px' }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleInsert}
+          style={{ marginLeft: '10px' }}
+        >
           Insert
         </Button>
-        <Button variant="contained" color="secondary" onClick={handleDelete} style={{ marginLeft: '10px' }}>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={handleDelete}
+          style={{ marginLeft: '10px' }}
+        >
           Delete
         </Button>
-        <Button variant="contained" onClick={resetTree} style={{ marginLeft: '10px' }}>
+        <Button
+          variant="contained"
+          onClick={resetTree}
+          style={{ marginLeft: '10px' }}
+        >
           Reset Tree
         </Button>
-      </div>
-
-      <div className="animation-speed-control">
-        <Typography gutterBottom>Animation Speed (ms)</Typography>
-        <Slider
-          value={animationSpeed}
-          onChange={(e, value) => setAnimationSpeed(value)}
-          min={100}
-          max={3000}
-          step={100}
-          valueLabelDisplay="auto"
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={generateRandomTree}
+          style={{ marginLeft: '10px' }}
+        >
+          Generate Random Tree
+        </Button>
+        <TextField
+          label="Search a number"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          type="number"
+          margin="normal"
+          error={!!error}
+          helperText={error || ''}
+          style={{ marginLeft: '10px' }}
         />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleSearch}
+          style={{ marginLeft: '10px' }}
+        >
+          Search
+        </Button>
       </div>
-
+  
+  
       <div className="delay-control">
         <Typography gutterBottom>Delay Before Balancing (ms)</Typography>
         <Slider
@@ -187,24 +273,22 @@ const App = () => {
           valueLabelDisplay="auto"
         />
       </div>
-
+  
       <Grid container spacing={2} className="charts-container" justifyContent="center">
-      <Grid item xs={12} sm={6}>
-        <MermaidDiagram chart={chart} animationSpeed={animationSpeed} />
+        <Grid item xs={12} sm={6}>
+          <TreeVisualizer 
+            data={treeData} 
+            balancedNode={balancedNode} 
+            childNodes={childNodes} 
+            animationSpeed={animationSpeed} 
+          />
+        </Grid>
       </Grid>
-      <Grid item xs={12} sm={6}>
-        <TreeVisualizer 
-          data={treeData} 
-          balancedNode={balancedNode} 
-          childNodes={childNodes} 
-          animationSpeed={animationSpeed} 
-        />
-      </Grid>
-    </Grid>
-
+  
       {error && <Typography color="error" className="error-message">{error}</Typography>}
     </Container>
   );
+  
 };
 
 export default App;
